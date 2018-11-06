@@ -3,9 +3,17 @@
 if (!require(tidytext)) install.packages("tidytext")
 if (!require(tidyverse)) install.packages("tidyverse")
 if (!require(ggplot2)) install.packages("ggplot2")
+if (!require(wordcloud)) install.packages("wordcloud")
+if (!require(reshape2)) install.packages("reshape2")
+if (!require(Rmpfr)) install.packages("Rmpfr") # sudo apt-get install libgmp3-dev, 
+if (!require(topicmodels)) install.packages("topicmodels") # sudo apt-get install gsl-bin
+if (!require(ldatuning)) install.packages("ldatuning")
 library(tidytext)
 library(tidyverse)
 library(ggplot2)
+library(wordcloud)
+library(reshape2)
+library(ldatuning)
 
 setwd("~/R/amazon.finefoods")
 
@@ -28,17 +36,14 @@ y.2 <- y.1 %>%
 
 data("stop_words")
 y.3 <- y.2 %>% 
-  anti_join(stop_words)
-
-y.3 <- as_data_frame(y.3)
-
-y.3 <- y.3 %>% 
-  count(word, sort=TRUE)
-
-y.3 <- y.3[-1,] # remove 'br'
+  anti_join(stop_words) %>% 
+  filter(word != "br") # remove 'br'
 
 y.3 %>% 
-  # count(word, sort=TRUE) %>% 
+  count(word, sort=TRUE)
+
+y.3 %>% 
+  count(word, sort=TRUE) %>%
   filter(n>60) %>% 
   mutate(word=reorder(word,n)) %>% 
   ggplot(aes(word,n))+
@@ -53,7 +58,102 @@ y.4 <- y.3 %>%
   inner_join(sent.bing) %>% 
   count(word,sentiment,sort=TRUE)
 
+bing.pos <- sent.bing %>% 
+  filter(sentiment=="positive")
 
+
+y.3 %>% 
+  semi_join(bing.pos) %>% 
+  count(word, sort=T)
+
+
+y.3 %>% 
+  inner_join(sent.bing) %>% 
+  count(word, sentiment) %>% 
+  spread(sentiment,n,fill=0) %>% 
+  mutate(sentiment=positive-negative)
+  
+y.4 <- y.3 %>% 
+  inner_join(sent.bing) %>% 
+  count(word, sentiment) %>% 
+  spread(sentiment,n,fill=0) %>% 
+  mutate(sentiment=positive-negative)
+
+y.3 %>%
+  count(word) %>% 
+  with(wordcloud(word,n,max.words=100))
+
+
+y.3 %>%
+  inner_join(get_sentiments("bing")) %>%
+  count(word, sentiment, sort = TRUE) %>%
+  acast(word ~ sentiment, value.var = "n", fill = 0) %>%
+  comparison.cloud(colors = c("#F8766D", "#00BFC4"),
+                   max.words = 80,
+                   scale=c(3,.2))
+y.3 %>% 
+  inner_join(sent.bing) %>% 
+  count(word, sentiment, sort=TRUE) %>% 
+  filter(n>10) %>% 
+  mutate(n = ifelse(sentiment == "negative", -n, n)) %>%
+  mutate(word = reorder(word, n)) %>%
+  ggplot(aes(word, n, fill = sentiment)) +
+  geom_col() +
+  coord_flip() +
+  labs(y = "Contribution to sentiment")
+
+## LDA tuning?
+y.lda <- y %>% 
+  data_frame(chars = trimws(y)) %>%
+  mutate(variable_num = cumsum(grepl(":", chars)) ) %>%
+  group_by(variable_num) %>%
+  summarise(chars = paste0(chars, collapse = " ")) %>%
+  separate(chars, into = c("variable", "value"), sep = ": ") %>%
+  select(-variable_num) %>% 
+  mutate(variable = sub(".*/", "", variable),
+         record_num = cumsum(variable == "productId")) %>% 
+  spread(variable, value, convert = T) %>% 
+  select(profileName,score,text) %>% 
+  unnest_tokens(word,text) %>% 
+  anti_join(stop_words) %>% 
+  filter(word != "br") # remove 'br'
+
+y.lda <- y.lda %>% 
+  count(profileName, word,sort=TRUE)
+
+y.lda <- y.lda %>% 
+  cast_dtm(profileName,word,n)
+
+inspect(y.lda[1:10,1:10])
+
+lda.tops <- LDA(y.lda,k=9,control=list(seed = 1234))
+lda.tops
+y.topics <- tidy(lda.tops,matrix="beta")
+
+top_terms <- y.topics %>%
+  group_by(topic) %>%
+  top_n(20, beta) %>%
+  ungroup() %>%
+  arrange(topic, -beta)
+
+top_terms
+# Plot the 20 top terms per topic
+top_terms %>%
+  mutate(term = reorder(term, beta)) %>%
+  ggplot(aes(term, beta, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ topic, scales = "free") +
+  coord_flip()
+
+result <- FindTopicsNumber(
+  y.lda,
+  topics = seq(from = 2, to = 15, by = 1),
+  metrics = c("Griffiths2004", "CaoJuan2009", "Arun2010", "Deveaud2014"),
+  method = "Gibbs",
+  control = list(seed = 77),
+  mc.cores = 2L,
+  verbose = TRUE)
+FindTopicsNumber_plot(result)
 ## Data import from stackoverflow postn
 # Stepwise to figure out what the hell this does
 # https://stackoverflow.com/questions/53165140/reading-file-with-one-column-with-rows-as-variable-names/53165451#53165451
