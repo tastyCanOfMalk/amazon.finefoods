@@ -15,7 +15,8 @@ library(wordcloud)
 library(reshape2)
 library(ldatuning)
 
-setwd("~/R/amazon.finefoods")
+# setwd("~/R/amazon.finefoods")
+setwd("C:/Users/e/Documents/R/amazon.finefoods")
 
 y <- readLines("data/foods.txt",n=5000)
 
@@ -61,11 +62,9 @@ y.4 <- y.3 %>%
 bing.pos <- sent.bing %>% 
   filter(sentiment=="positive")
 
-
 y.3 %>% 
   semi_join(bing.pos) %>% 
   count(word, sort=T)
-
 
 y.3 %>% 
   inner_join(sent.bing) %>% 
@@ -83,7 +82,6 @@ y.3 %>%
   count(word) %>% 
   with(wordcloud(word,n,max.words=100))
 
-
 y.3 %>%
   inner_join(get_sentiments("bing")) %>%
   count(word, sentiment, sort = TRUE) %>%
@@ -91,6 +89,7 @@ y.3 %>%
   comparison.cloud(colors = c("#F8766D", "#00BFC4"),
                    max.words = 80,
                    scale=c(3,.2))
+
 y.3 %>% 
   inner_join(sent.bing) %>% 
   count(word, sentiment, sort=TRUE) %>% 
@@ -154,6 +153,8 @@ result <- FindTopicsNumber(
   mc.cores = 2L,
   verbose = TRUE)
 FindTopicsNumber_plot(result)
+
+
 ## Data import from stackoverflow postn
 # Stepwise to figure out what the hell this does
 # https://stackoverflow.com/questions/53165140/reading-file-with-one-column-with-rows-as-variable-names/53165451#53165451
