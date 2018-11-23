@@ -6,16 +6,20 @@ if (!require(reshape2)) install.packages("reshape2")
 if (!require(Rmpfr)) install.packages("Rmpfr")
 if (!require(topicmodels)) install.packages("topicmodels")
 if (!require(ldatuning)) install.packages("ldatuning")
+if (!require(scales)) install.packages("scales")
 library(tidytext)
 library(tidyverse)
 library(ggplot2)
 library(wordcloud)
 library(reshape2)
 library(ldatuning)
+library(scales)
 
-setwd("~/R/amazon.finefoods")
+# setwd("~/R/amazon.finefoods")
+setwd("C:/Users/e/Documents/R/amazon.finefoods")
 
-x <- readLines("data/foods.txt", n=10000)
+# x <- readLines("data/foods.txt", n=1000)
+x <- readLines("data/foods.txt")
 
 # put variables into columns
 x.tidy <- x %>%
@@ -64,7 +68,7 @@ x.tidy %>%
 x.tidy %>% 
   inner_join(get_sentiments("bing")) %>% 
   count(word, sentiment, sort=TRUE) %>% 
-  filter(n>100) %>% 
+  filter(n>1000) %>% 
   mutate(n = ifelse(sentiment == "negative", -n, n)) %>%
   mutate(word = reorder(word, n)) %>%
   ggplot(aes(word, n, fill = sentiment)) +
@@ -81,6 +85,7 @@ frequency <- x.tidy %>%
   spread(score, proportion) %>%
   gather(score, proportion, `1`,`2`,`3`,'4')
 
+# Comparing word frequencies of 5 star reviews to 1 thru 4 star reviews
 ggplot(frequency, aes(x = proportion, y = `5`, color = abs(`5` - proportion))) +
   geom_abline(color = "gray40", lty = 2) +
   geom_jitter(alpha = 0.1, size = 2.5, width = 0.3, height = 0.3) +
@@ -149,28 +154,28 @@ top.terms %>%
 # how to search for optimal number of topics? LDAtuning
 tuner1 <- FindTopicsNumber(
   x.dtm,
-  topics = seq(from = 5, to = 50, by = 5),
+  topics = seq(from = 5, to = 50, by = 10),
   metrics = c("Griffiths2004", "CaoJuan2009", "Arun2010", "Deveaud2014"),
   method = "Gibbs",
   control = list(seed = 77),
   mc.cores = 2L,
   verbose = TRUE)
-FindTopicsNumber_plot(tuner)
+FindTopicsNumber_plot(tuner1)
 
 # optimum topic numbers around 10-20, try again more narrowed
 tuner2 <- FindTopicsNumber(
   x.dtm,
-  topics = seq(from = 10, to = 20, by = 1),
+  topics = seq(from = 50, to = 60, by = 1),
   metrics = c("Griffiths2004", "CaoJuan2009", "Arun2010", "Deveaud2014"),
   method = "Gibbs",
   control = list(seed = 77),
   mc.cores = 2L,
   verbose = TRUE)
-FindTopicsNumber_plot(tuner)
+FindTopicsNumber_plot(tuner2)
 
 # Optimal topics maybe 15
 # perform LDA using optimal topics from above
-product.lda <- LDA(x.dtm,k=15,control=list(seed=1234))
+product.lda <- LDA(x.dtm,k=55,control=list(seed=1234))
 product.topics <- tidy(product.lda,matrix="beta")
 
 # top n terms in each topic k
